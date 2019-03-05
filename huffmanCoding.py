@@ -56,6 +56,31 @@ class Huffman:
                 freqlist.append([char,1])
         return freqlist
 
+    @staticmethod
+    def deserialize(filename):
+        root = Node(data='root')
+        queue = [root]
+        file = open(filename,'r')
+        for line in file.readlines():
+            current = queue.pop(0)
+            #set vertex data and frequency
+            line = line.split(':')
+            current.data = line[0]
+            current.freq = line[1][:-1]
+            #if internal vertex
+            if current.freq == 'None':
+                #create next vertices and append to queue
+                current.freq = None
+                current.left = Node()
+                current.right = Node()
+                queue.append(current.left)
+                queue.append(current.right)
+            else:
+                #cast frequency as int if terminating vertex
+                current.freq = int(current.freq)
+        file.close()
+        return root
+
 class Node(Huffman):
 
     def __init__(self,data=None,freq=None):
@@ -200,3 +225,17 @@ class Node(Huffman):
         vertex.right = Node(data=vertex.data,freq=vertex.freq)
         vertex.data = Huffman.INT_VERTEX_DATA
         vertex.freq = None
+
+    #serialise huffman code to file
+    def serialise(self,filename):
+        queue = [self]
+        file = open(filename,'w')
+        while len(queue) > 0:
+            current = queue.pop(0)
+            #write current vertex data and frequency to file
+            file.write(str(current.data)+':'+str(current.freq)+'\n')
+            #continue traversing
+            if current.left != None:
+                queue.append(current.left)
+                queue.append(current.right)
+        file.close()
