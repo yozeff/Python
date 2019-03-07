@@ -1,22 +1,33 @@
 #Joseph Harrison 2019
 #huffman coding
 import math as m
+import copy as c
 
 class Huffman:
 
     #static instance constants
     LEFT = '1'
     RIGHT = '0'
-    DECODE_BITSTRING_EXCEPTION = 'bitstring must be consistant with constants'
+    DECODE_BITSTRING_EXCEPTION = """bitstring must be
+           consistant with left
+           and right constants...\n
+           reset constants with:
+           Huffman.LEFT = <newleft>
+           Huffman.RIGHT = <newright>"""
+    INT_VERTEX_DATA = '>>>'
+    INVALID_VERTEX_DATA = """data for huffman code
+           cannot be the same as
+           internal vertex data: """+INT_VERTEX_DATA+"""\n
+           reset constant with:
+           Huffman.INT_VERTEX_DATA = <newdata>"""
     ROOT_DATA = 'root'
-    INT_VERTEX_DATA = '>'
 
     #construct huffman code based on frequencies
     @staticmethod
     def construct_huffman_code(frequencies):
         #basis tree
         if len(frequencies) == 2:
-            root = Node(data=Huffman.ROOT_DATA)
+            root = Node(data=Huffman.ROOT_DATA,freq=sum(frequencies))
             root.left = Node(freq=frequencies[0])
             root.right = Node(freq=frequencies[1])
             return root
@@ -31,9 +42,8 @@ class Huffman:
         #search for vertex with freq equal to sum of
         #minimum frequencies in this call
         vertex = root.get_vertex(min1 + min2)
-        #nullify vertex frequency
-        vertex.freq = None
         vertex.data = Huffman.INT_VERTEX_DATA
+        vertex.freq = None
         #add children to vertex
         vertex.left = Node(freq=min1)
         vertex.right = Node(freq=min2)
@@ -51,7 +61,7 @@ class Huffman:
                     #increment frequency
                     freqlist[i][1] += 1
                     flag = False
-            #if entry doesn't exist create one
+            #if entry doesn't exist, create one
             if flag:
                 freqlist.append([char,1])
         return freqlist
@@ -79,6 +89,7 @@ class Huffman:
                 #cast frequency as int if terminating vertex
                 current.freq = int(current.freq)
         file.close()
+        root.update_freq()
         return root
 
 class Node(Huffman):
@@ -87,6 +98,27 @@ class Node(Huffman):
         self.left = self.right = None
         self.data = data
         self.freq = freq
+
+    def __repr__(self):
+        self.print_tree()
+        return 'Node ' + str(self.data) + ' ' + str(self.freq)
+
+    def __add__(self,other):
+        #get optimal vertex position
+        vertex = self.closest_freq_vertex(other.freq)[0]
+        #create basis tree rooted at vertex
+        vertex.left = c.copy(other)
+        vertex.left.data = Huffman.INT_VERTEX_DATA
+        vertex.right = Node(data=vertex.data,freq=vertex.freq)
+        #update data and frequency
+        vertex.data = Huffman.INT_VERTEX_DATA
+        vertex.update_freq()
+
+    def update_freq(self):
+        #for internal vertices
+        if self.left != None:
+            self.freq = self.left.update_freq() + self.right.update_freq()
+        return self.freq
 
     def decode_bitstring(self,bitstring):
         current = self
@@ -156,47 +188,17 @@ class Node(Huffman):
                 #get data from frequency
                 i,flag = 0,True
                 while i < len(freqlist) and flag:
-                    if freqlist[i][1] == current.freq:
-                        current.data = freqlist[i][0]
-                        freqlist.pop(i)
-                        flag = False
+                    if freqlist[i][0] == Huffman.INT_VERTEX_DATA:
+                        raise Exception(Huffman.INVALID_VERTEX_DATA)
+                    elif freqlist[i][1] == current.freq:
+                        if current.data == None:
+                            current.data = freqlist[i][0]
+                            freqlist.pop(i)
+                            flag = False
                     i += 1
             else:
                 queue.append(current.left)
                 queue.append(current.right)
-
-    #utility function to get the depth of a huffman code
-    def get_depth(self,level=0):
-        if self.left == None:
-            return level
-        else:
-            levels = []
-            levels.append(self.left.get_depth(level + 1))
-            levels.append(self.right.get_depth(level + 1))
-            return max(levels)
-
-    def greedy_append_element(self,data,freq):
-        queue = [self]
-        while len(queue) > 0:
-            #set current vertex pointer
-            current = queue.pop(0)
-            #if we have found a suitable space
-            if current.left == None and current.freq <= freq:
-                #construct new basis tree rooted on current
-                #with current's data and data as the children's data
-                current.left = Node(freq=current.freq,data=current.data)
-                current.right = Node(freq=freq,data=data)
-                current.freq = None
-                current.data = Huffman.INT_VERTEX_DATA
-                return True
-            #continue traversing the tree
-            elif current.left != None:
-                queue.append(current.left)
-                queue.append(current.right)
-        current.left = Node(freq=current.freq,data=current.data)
-        current.right = Node(freq=freq,data=data)
-        current.freq = None
-        current.data = Huffman.INT_VERTEX_DATA
 
     #utility get vertex that has frequency closest to given frequency
     def closest_freq_vertex(self,freq):
@@ -216,16 +218,6 @@ class Node(Huffman):
                 queue.append(current.right)
         return vertex
 
-    #append element to tree in the optimal location
-    def optimal_append_element(self,data,freq):
-        #get optimal vertex position
-        vertex = self.closest_freq_vertex(freq)[0]
-        #create basis tree rooted at vertex
-        vertex.left = Node(data=data,freq=freq)
-        vertex.right = Node(data=vertex.data,freq=vertex.freq)
-        vertex.data = Huffman.INT_VERTEX_DATA
-        vertex.freq = None
-
     #serialise huffman code to file
     def serialise(self,filename):
         queue = [self]
@@ -239,3 +231,4 @@ class Node(Huffman):
                 queue.append(current.left)
                 queue.append(current.right)
         file.close()
+
