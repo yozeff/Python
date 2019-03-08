@@ -15,7 +15,7 @@ class Huffman:
            Huffman.LEFT = <newleft>
            Huffman.RIGHT = <newright>"""
     INT_VERTEX_DATA = '>>>'
-    INVALID_VERTEX_DATA = """data for huffman code
+    INT_DATA_EXCEPTION = """data for huffman code
            cannot be the same as
            internal vertex data: """+INT_VERTEX_DATA+"""\n
            reset constant with:
@@ -189,7 +189,7 @@ class Node(Huffman):
                 i,flag = 0,True
                 while i < len(freqlist) and flag:
                     if freqlist[i][0] == Huffman.INT_VERTEX_DATA:
-                        raise Exception(Huffman.INVALID_VERTEX_DATA)
+                        raise Exception(Huffman.INT_DATA_EXCEPTION)
                     elif freqlist[i][1] == current.freq:
                         if current.data == None:
                             current.data = freqlist[i][0]
