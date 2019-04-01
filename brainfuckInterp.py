@@ -1,5 +1,6 @@
 #Joseph Harrison 2019
 #brainfuck interpreter
+import os
 
 #increment data pointer
 def inc_ptr():
@@ -29,10 +30,10 @@ def out_val():
 def inp_val():
     global cells
     try:
-        cells[dataptr] = int(input('$$ '))
+        cells[dataptr] = ord(input('$$  '))
         return
     except TypeError:
-        print('takes integer as input')
+        print('takes an ascii character')
 
 #position of next ] command
 #that is a pair
@@ -85,7 +86,7 @@ def print_cells():
 
 #print a manual for brainfuck interpreter
 def print_man():
-    print('brainfuck interpreter manual\n')
+    print('\n                       brainfuck interpreter manual\n')
     descdict = {'>':f'increment the data pointer by 1 (mod {cellno})',
                 '<':f'decrement the data pointer by 1 (mod {cellno})',
                 '+':f"""increment the value in the cell pointed to by
@@ -94,8 +95,8 @@ def print_man():
              the data pointer by 1 (mod 255)""",
                 '.':"""output the ascii representation of the value
              in the cell pointed to by the data pointer""",
-                ',':"""take an integer as input and stores it in the
-             cell pointed to by the data pointer""",
+                ',':"""takes an ascii character as input and stores
+             it in the cell pointed to by the data pointer""",
                 '[':"""if the value in the cell pointed to by the
              data pointer is zero, jump to the command
              after the next ']' character""",
@@ -108,17 +109,53 @@ def print_man():
     descdict = {'q':'quit interpreter',
                 'm':'manual... but it seems you already know that',
                 'c':'print current contents of the memory cells',
-                'd':'print the current value of the data pointer'}
+                'd':'print the current value of the data pointer',
+                'r':'reset interpreter state',
+                'o':'open a brainfuck file and run it immediately',
+                'n':"""open the brainfuck editor and create a new file
+             the file is closed and saved with an 'n'"""}
     print('interpreter commands:\n')
     for command in descdict:
         print(f'    {command}        {descdict[command]}\n')
-    print('brainfuck abstraction substitutions:\n')
-    descdict = {'r':"""shift the value in the cell pointed to by the
-             data pointer to the cell on the right - this is addition""",
-                'l':"""shift the value in the cell pointed to by the
-             data pointer to the cell on the left - this is addition"""}
-    for command in descdict:
-        print(f'    {command}        {descdict[command]}\n')
+
+#reset cells and data pointer
+def reset():
+    global cells
+    global dataptr
+    cells = [0 for i in range(cellno)]
+    dataptr = 0
+
+#open a brainfuck file
+def open_bf_file():
+    global line
+    filename = input('$$$ ')
+    try:
+        file = open('bfPrograms/' + filename + '.txt','r')
+        #read code from file
+        filecode = ''
+        for fileline in file.readlines():
+            filecode += fileline.replace('\n','')
+        #replace o in line with
+        #code in file
+        file.close()
+        line = line.replace('o','o' + filecode)
+    except FileNotFoundError:
+        print('file not found')
+
+#open brainfuck editor
+def open_editor():
+    filename = input('$$$ ')
+    file = open('bfPrograms/' + filename + '.txt','w')
+    fileline = ''
+    filecode = ''
+    while fileline != 'n':
+        fileline = input('~   ')
+        #remove newlines and whitespace
+        fileline = fileline.replace('\n','')
+        fileline = fileline.replace(' ','')
+        filecode += fileline
+    file.write(filecode[:-1])
+    file.close()
 
 #memory cells
 cellno = 16
@@ -136,20 +173,30 @@ commdict = {'>':inc_ptr,
             ',':inp_val,
             'm':print_man,
             'c':print_cells,
-            'd':print_dataptr}
-
-#substitutions can act as abstractions
-#of common brainfuck operations
-subdict = {'r':'[->+<]>',
-           'l':'[-<+>]<'}
+            'd':print_dataptr,
+            'r':reset,
+            'o':open_bf_file,
+            'n':open_editor}
 
 print("brainfuck interpreter Joseph Harrison 2019"
       "\n'm' for manual 'q' to quit")
+
+#create 'bfPrograms' folder if it doesn't
+#already exist
+try:
+    if not os.path.exists('bfPrograms'):
+        print("creating 'bfPrograms' directory")
+        os.makedirs('bfPrograms')
+except OSError:
+    print("error creating 'bfPrograms' directory")
 
 #line that is being processed
 line = ''
 #'q' to exit
 while line != 'q':
+
+    #get input line
+    line = input('$   ')
             
     #flag allows a line to stop
     #being processed if an error
@@ -163,12 +210,6 @@ while line != 'q':
     #haven't reached the end of line
     #and an error has not occured
     while insptr != len(line) and not errflag:
-
-        #check for abstraction substitutions
-        if line[insptr] in subdict:
-            line = list(line)
-            line[insptr] = subdict[line[insptr]]
-            line = ''.join(line)
         
         #for [ routine
         if line[insptr] == '[':
@@ -209,8 +250,5 @@ while line != 'q':
             except KeyError:
                 print("command doesn't exist")
                 errflag = True
-
-    #get input line
-    line = input('$ ')
 
 print('thank you for choosing brainfuck')
