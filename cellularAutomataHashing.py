@@ -1,6 +1,6 @@
 #Joseph Harrison 2019
 #1D cellular automata hashing
-#using von neumann neighbourhood
+#using extended von neumann neighbourhood
 import random as r
 import sys
 
@@ -18,7 +18,7 @@ def apply_rulestr(bitstr, born, surv):
     for i in range(len(bitstr)):
         #get number of live neighbours
         live = 0
-        for j in range(-1, 2):
+        for j in range(-2, 3):
             if bitstr[(i + j) % len(bitstr)] == LIVE:
                 live += 1
         #apply rules given by born and surv lists
