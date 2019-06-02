@@ -2,6 +2,7 @@
 #neural net using relu and backprop
 import numpy as np
 from typing import NewType, List, TypeVar
+import random
 
 Node = NewType('Node', object)
 Real = TypeVar('Real', int, float)
@@ -17,7 +18,7 @@ class Node:
         self.inputnode = True
         self.links = []
         self.wts = []
-        self.bias = 0.001
+        self.bias = 0
         self.val = None
 
     #create links between nodes
@@ -30,21 +31,23 @@ class Node:
             self.inputnode = False
             for node in nodes:
                 self.links.append(node)
-                self.wts.append(1)
+                self.wts.append(random.random())
 
     #present a pattern to net
     #this will set the values of the
     #input nodes
-    def present(self: Node, pattern: List[Real]) -> None:
+    def present(self: Node, pattern: List[Real], visited: List[Node]) -> None:
         if self.inputnode:
             try:
-                self.val = pattern.pop(0)
+                if self not in visited:
+                    self.val = pattern.pop(0)
+                    visited.append(self)
             except IndexError:
                 raise ValueError('insufficient pattern')
         else:
             #present nodes to children
             for node in self.links:
-                node.present(pattern)
+                node.present(pattern, visited)
 
     #nullify hidden layer node values
     #this must be done before evaluating
@@ -78,7 +81,7 @@ class Node:
             #expected output from net
             exp = pattern.pop()
             #present pattern to net
-            self.present(pattern)
+            self.present(pattern, [])
             #nullify nodes before evaluating
             #weighted sum
             self.nullify_hidden()
@@ -97,16 +100,13 @@ class Node:
             #sigma = x . wts + bias
             sigma = invReLU(self.val)
             dCdSigma = dCdAct * ReLUPrime(sigma)
-
             #recursive call on links
             dCdx = np.multiply(dCdSigma, self.wts)
             for i, node in enumerate(self.links):
                 node.apply_derivative(dCdx[i], lrate)
-
             #dCdWts = dCdAct * dActdSigma * dSigmadWts
             x = [node.val for node in self.links]
             dCdWts = np.multiply(dCdSigma, x)
-            
             #apply derivative to weights and bias
             self.wts -= dCdWts * lrate
             self.bias -= dCdSigma * lrate
@@ -114,40 +114,41 @@ class Node:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    data = [[1, 1, 1],
-            [0, 1, 0],
-            [1, 0, 0],
+    #data = [[1, 1, 1],
+    #        [0, 1, 0],
+    #        [1, 0, 0],
+    #        [0, 0, 0]]
+
+    #root = Node()
+    #root.link([Node(), Node()])
+
+    data = [[1, 1, 0],
+            [1, 0, 1],
+            [0, 1, 1],
             [0, 0, 0]]
-
+    
     root = Node()
-    root.link([Node(), Node()])
-
-    mes = 0
-    for pattern in data:
-        pattern = list(pattern)
-        exp = pattern.pop()
-        root.present(pattern)
-        root.nullify_hidden()
-        act = root.weighted_sum
-        err = (act - exp) ** 2
-        mes += err
-    mes /= len(data)
-    print('before:')
-    print(f'mes: {mes}')
+    hidden = [Node(), Node(), Node()] 
+    inputs = [Node(), Node()]
+    for node in hidden:
+        node.link(inputs)
+    root.link(hidden)
 
     mesdata = []
-    iterations = 100
-    printwhen = iterations // 100
+    iterations = 10000
+    if iterations >= 200:
+        printwhen = iterations // 100
+    else:
+        printwhen = 1
 
-    for i in range(100):
-        root.backprop(data, 0.1)
+    for i in range(iterations):
     
         if i % printwhen == 0:
             mes = 0
             for pattern in data:
                 pattern = list(pattern)
                 exp = pattern.pop()
-                root.present(pattern)
+                root.present(pattern, [])
                 root.nullify_hidden()
                 act = root.weighted_sum
                 err = (act - exp) ** 2
@@ -155,6 +156,18 @@ if __name__ == '__main__':
             mes /= len(data)
             mesdata.append((i, mes))
             print(f'epoch: {i} mes: {mes}')
+
+        root.backprop(data, 0.01)
+    
+    for pattern in data:
+        pattern = list(pattern)
+        exp = pattern.pop()
+        print(f'pattern: {pattern}')
+        root.present(pattern, [])
+        root.nullify_hidden()
+        act = root.weighted_sum
+        err = abs(act - exp)
+        print(f'act: {act} exp: {exp} err: {err}')
 
     x, y = zip(*mesdata)
     plt.plot(x, y)
