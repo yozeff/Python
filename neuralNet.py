@@ -91,7 +91,7 @@ class Node:
             #C = (act - exp)^2
             dCdAct = 2 * (act - exp) 
             #apply derivative to net
-            root.apply_derivative(dCdAct, lrate)
+            self.apply_derivative(dCdAct, lrate)
 
     #apply the calculated dCdAct derivative
     #to weights
@@ -111,16 +111,41 @@ class Node:
             self.wts -= dCdWts * lrate
             self.bias -= dCdSigma * lrate
 
+    def mean_error_squared(self: Node, data: Matrix) -> Real:
+        mes = 0
+        for pattern in data:
+            pattern = list(pattern)
+            #expected output
+            exp = pattern.pop()
+            self.present(pattern, [])
+            self.nullify_hidden()
+            #sum error squared
+            mes += (exp - self.weighted_sum) ** 2
+        #mean
+        mes /= len(data)
+        return mes
+
+#layers is the number of nodes in each layer
+def make_net(layers: List[int]) -> List[Node]:
+    outputs = [Node() for i in range(layers.pop())]
+    lastlayer = outputs
+    while len(layers) != 0:
+        layer = [Node() for i in range(layers.pop())]
+        for node in lastlayer:
+            node.link(layer)
+        lastlayer = layer
+    return outputs
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    #data = [[1, 1, 1],
-    #        [0, 1, 0],
-    #        [1, 0, 0],
-    #        [0, 0, 0]]
+    data = [[1, 1, 1],
+            [0, 1, 0],
+            [1, 0, 0],
+            [0, 0, 0]]
 
-    #root = Node()
-    #root.link([Node(), Node()])
+    root = Node()
+    root.link([Node(), Node()])
 
     data = [[1, 1, 0],
             [1, 0, 1],
@@ -134,6 +159,14 @@ if __name__ == '__main__':
         node.link(inputs)
     root.link(hidden)
 
+    data = [[0.2, 0.8, 0.5, 1],
+            [0.7, 0.3, 0.9, 0],
+            [0.8, 0.3, 0.4, 0],
+            [0.3, 0.6, 0.2, 1],
+            [0.1, 0.5, 0.4, 1]]
+    
+    root = make_net([3, 1])[0]
+
     mesdata = []
     iterations = 10000
     if iterations >= 200:
@@ -144,21 +177,12 @@ if __name__ == '__main__':
     for i in range(iterations):
     
         if i % printwhen == 0:
-            mes = 0
-            for pattern in data:
-                pattern = list(pattern)
-                exp = pattern.pop()
-                root.present(pattern, [])
-                root.nullify_hidden()
-                act = root.weighted_sum
-                err = (act - exp) ** 2
-                mes += err
-            mes /= len(data)
+            mes = root.mean_error_squared(data)
             mesdata.append((i, mes))
             print(f'epoch: {i} mes: {mes}')
 
-        root.backprop(data, 0.01)
-    
+        root.backprop(data, 0.01) 
+
     for pattern in data:
         pattern = list(pattern)
         exp = pattern.pop()
@@ -166,8 +190,7 @@ if __name__ == '__main__':
         root.present(pattern, [])
         root.nullify_hidden()
         act = root.weighted_sum
-        err = abs(act - exp)
-        print(f'act: {act} exp: {exp} err: {err}')
+        print(f'exp: {exp} act: {act} err: {abs(exp - act)}')
 
     x, y = zip(*mesdata)
     plt.plot(x, y)
