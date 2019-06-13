@@ -1,7 +1,7 @@
 #Joseph Harrison 2019
 #alphabetic frequency analysis for
 #caesar ciphers
-from typing import Dict
+from typing import Dict, Tuple
 import numpy as np
 
 #https://en.wikipedia.org/wiki/Letter_frequency
@@ -52,24 +52,24 @@ def make_caesar_table(shift: int) -> CaesarTable:
         ret[alphabet[(i + shift) % len(alphabet)]] = alphabet[i]
     return ret
 
-def optimal_shift(ciphertext: str) -> CaesarTable:
+def optimal_shift(ciphertext: str) -> Tuple[CaesarTable, float, int]:
     relfreqtable = make_rel_freqtable(ciphertext)
     optimal = ({}, np.inf, 0)
     #test different shifts
-    for shift in range(1, len(alphabet)):
+    for shift in range(len(alphabet)):
         caesartable = make_caesar_table(shift)
-        #evaluate absolute mean error 
+        #evaluate chi-squared
         #between frequencies
-        mes = 0
+        chi = 0
         for char in alphabet:
             a = freqtable[caesartable[char]]
             b = relfreqtable[char]
-            mes += abs(a - b)
-        mes /= len(alphabet)
+            chi += (a - b) ** 2
+        chi /= len(alphabet)
         #optimal table is decided
-        #by mean absolute error
-        if mes < optimal[1]:
-            optimal = (caesartable, mes, shift)
+        #chi-squared value
+        if chi < optimal[1]:
+            optimal = (caesartable, chi, shift)
     return optimal
 
 if __name__ == '__main__':

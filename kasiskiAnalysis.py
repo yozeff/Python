@@ -4,8 +4,8 @@
 #using the vigenere cipher
 import re
 from typing import List, Dict, Set
-import frequencyAnalysis
-import vigenereCipher
+from indexOfCoincidence import index_of_coincidence, ALPHABET
+from frequencyAnalysis import optimal_shift
 
 DistanceTable = Dict[str, List[int]]
 
@@ -28,12 +28,18 @@ def repeating_graphs(n: int, string: str) -> DistanceTable:
                 ret[substr].append(dist)
     return ret
 
-def factors(n: int) -> Set[int]:
+def get_factors(n: int) -> Set[int]:
     ret = set()
     for i in range(1, int(n ** 0.5)):
         #if divisible then factor
         if n % i == 0:
             ret.add(i)
+    return ret
+
+def get_cosets(string: str, n: int) -> List[str]:
+    ret = ['' for i in range(n)]
+    for i in range(len(string)):
+        ret[i % n] += string[i]
     return ret
 
 if __name__ == '__main__':
@@ -51,12 +57,14 @@ if __name__ == '__main__':
     #write file contents to ciphertext string
     ciphertext = ''
     for line in handle.readlines():
-        ciphertext += line.replace('\n', '')
+        line = line.replace('\n', '')
+        line = line.lower()
+        ciphertext += line.replace(' ', '')
 
     handle.close()
 
-    #record occurences of each factor
-    factortable = {}
+    #total set of factors
+    factorset = set()
 
     sizeinput = ''
     #continue gathering n-graphs until 
@@ -81,48 +89,58 @@ if __name__ == '__main__':
             #only consider non empty entries
             if len(dists[entry]) != 0:
                 #get list of factors of each distance
-                factorset = list(map(factors, dists[entry]))
+                factorsubset = list(map(get_factors, dists[entry]))
                 #intersection gives possible keyword length
                 #considering only this graph
-                factorset = set.intersection(*factorset)
+                factorsubset = set.intersection(*factorsubset)
                 print(f'{entry} : {dists[entry]} : {factorset}')
-                #record factor
-                for factor in factorset:
-                    if factor not in factortable:
-                        factortable[factor] = 1
-                    else:
-                        factortable[factor] += 1
+                #union of factor sets - collect unique factors
+                factorset = factorset | factorsubset
 
         sizeinput = input('stop getting graphs (s): ')
 
-    #output factors with occurences
+    #disregard factor 1
+    factorset.remove(1)
+
+    #factor yielding the best ic
     optimal = (0, 0)
-    print('factor : occurrence')
-    for factor in factortable:
-        print(f'{factor :6} : {factortable[factor]}')
-        #evaluate optimal factor by multiplying it by occurences
-        if factor * factortable[factor] > optimal[1]:
-            optimal = (factor, factortable[factor] * factor)
-    
-    p = optimal[0]
 
-    print(f'most probable key length: {p}')
+    print('factor : mean IC')
 
-    ciphertext = ciphertext.lower()
+    #evaluate indices of coincidence
+    for factor in factorset:
+        #make cosets
+        cosets = get_cosets(ciphertext, factor)
+        meanic = sum(map(index_of_coincidence, cosets))
+        meanic /= factor
+        print(f'{factor} : {meanic}')
+        #update optimal factor
+        if meanic > optimal[1]:
+            optimal = (factor, meanic)
+
+    factor = optimal[0]
+
+    print(f'optimal factor: {factor}')
+
+    #determine keyword
     keyword = ''
+    cosets = get_cosets(ciphertext, factor)
+    for i in range(factor):
+        #frequency analysis on coset
+        caesartable, _, shift = optimal_shift(cosets[i])
+        keyword += ALPHABET[shift]
+        decryptedcoset = ''
+        #decrypt cosets
+        for j in range(len(cosets[i])):
+            decryptedcoset += caesartable[cosets[i][j]]
+        cosets[i] = decryptedcoset
 
-    #frequency analysis on slices of ciphertext
-    #gives keyword
-    for i in range(p):
-        k = (len(ciphertext) // (i + 1)) * (i + 1)
-        subciphertext = [ciphertext[j] for j in range(i, k, p)]
-        subciphertext = ''.join(subciphertext)
-        _, _, shift = frequencyAnalysis.optimal_shift(subciphertext)
-        keyword += frequencyAnalysis.alphabet[shift]
+    #put cosets into plaitext string
+    cosets = list(map(list, cosets))
+    plaintext = ''
+    for item in zip(*cosets):
+        plaintext += ''.join(item)
 
-    print(f'most probable keyword: {keyword}')
-
-    #decipher ciphertext
-    plaintext = vigenereCipher.decipher(ciphertext, keyword)
+    print(f'keyword: {keyword}')
     print(f'plaintext: {plaintext}')
 
