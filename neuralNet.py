@@ -45,18 +45,11 @@ class Node:
             except IndexError:
                 raise ValueError('insufficient pattern')
         else:
+            #nullify value
+            self.val = None
             #present nodes to children
             for node in self.links:
                 node.present(pattern, visited)
-
-    #nullify hidden layer node values
-    #this must be done before evaluating
-    #weighted sum
-    def nullify_hidden(self: Node) -> None:
-        if self.inputnode == False:
-            self.val = None
-            for node in self.links:
-                node.nullify_hidden()
 
     @property
     def weighted_sum(self: Node) -> Real:
@@ -75,28 +68,10 @@ class Node:
             self.val = ReLU(self.val)
             return self.val
 
-    def backprop(self: Node, data: Matrix, lrate: Real) -> None:
-        for pattern in data:
-            pattern = list(pattern)
-            #expected output from net
-            exp = pattern.pop()
-            #present pattern to net
-            self.present(pattern, [])
-            #nullify nodes before evaluating
-            #weighted sum
-            self.nullify_hidden()
-            #actual output from net
-            act = self.weighted_sum
-            #evaluate dCdAct where
-            #C = (act - exp)^2
-            dCdAct = 2 * (act - exp) 
-            #apply derivative to net
-            self.apply_derivative(dCdAct, lrate)
-
     #apply the calculated dCdAct derivative
     #to weights
     def apply_derivative(self: Node, dCdAct: Real, lrate: Real) -> None:
-        if self.inputnode == False:
+        if not self.inputnode:
             #sigma = x . wts + bias
             sigma = invReLU(self.val)
             dCdSigma = dCdAct * ReLUPrime(sigma)
@@ -118,15 +93,51 @@ class Node:
             #expected output
             exp = pattern.pop()
             self.present(pattern, [])
-            self.nullify_hidden()
             #sum error squared
             mes += (exp - self.weighted_sum) ** 2
         #mean
         mes /= len(data)
         return mes
 
+    #remove weights that fall below threshold
+    def prune(self: Node, threshold: Real) -> None:
+        newWts = []
+        newlinks = []
+        for i, wt in enumerate(self.wts):
+            if abs(wt) >= threshold:
+                newWts.append(wt)
+                newlinks.append(self.links[i])
+            else:
+                print(f'pruned a node with weight {wt}')
+        self.wts = list(newWts)
+        self.links = list(newlinks)
+        #recursive call on remaining nodes
+        for node in self.links:
+            node.prune(threshold)
+
+Layer = List[Node]
+
+def backprop(outputs: Layer, data: Matrix, lrate: Real) -> None:
+    for pattern in data:
+        pattern = list(pattern)
+        #expected output from net
+        exp = np.array([pattern.pop() for 
+                        node in outputs])
+        exp = np.flip(exp)
+        #present pattern to net
+        outputs[0].present(pattern, [])
+        #actual output from net
+        act = np.array([node.weighted_sum 
+                        for node in outputs])
+        #evaluate dCdAct where
+        #C = (act - exp)^2
+        dCdAct = 2 * (act - exp)
+        #apply derivative to net
+        for i, node in enumerate(outputs):
+            node.apply_derivative(dCdAct[i], lrate)
+
 #layers is the number of nodes in each layer
-def make_net(layers: List[int]) -> List[Node]:
+def make_net(layers: List[int]) -> Layer:
     outputs = [Node() for i in range(layers.pop())]
     lastlayer = outputs
     while len(layers) != 0:
@@ -137,65 +148,66 @@ def make_net(layers: List[int]) -> List[Node]:
     return outputs
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-
-    data = [[1, 1, 1],
-            [0, 1, 0],
-            [1, 0, 0],
-            [0, 0, 0]]
-
-    root = Node()
-    root.link([Node(), Node()])
-
-    data = [[1, 1, 0],
-            [1, 0, 1],
-            [0, 1, 1],
-            [0, 0, 0]]
+    import timeit
     
-    root = Node()
-    hidden = [Node(), Node(), Node()] 
-    inputs = [Node(), Node()]
-    for node in hidden:
-        node.link(inputs)
-    root.link(hidden)
+    #(A ^ B) ^ (C ^ ~D)
+    #some vectors are incorrect
+    #the network is still able
+    #to detect the correct patterns
+    data = [[0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0],
+            [0, 0, 1, 0, 0],
+            [0, 0, 1, 1, 0],
+            [0, 1, 0, 0, 1],
+            [0, 1, 0, 1, 0],
+            [0, 1, 1, 0, 0],
+            [0, 1, 1, 1, 0],
+            [1, 0, 0, 0, 1],
+            [1, 0, 0, 1, 0],
+            [1, 0, 1, 0, 0],
+            [1, 0, 1, 1, 0],
+            [1, 1, 0, 0, 0],
+            [1, 1, 0, 1, 0],
+            [1, 1, 1, 0, 1],
+            [1, 1, 1, 1, 0]]
 
-    data = [[0.2, 0.8, 0.5, 1],
-            [0.7, 0.3, 0.9, 0],
-            [0.8, 0.3, 0.4, 0],
-            [0.3, 0.6, 0.2, 1],
-            [0.1, 0.5, 0.4, 1]]
-    
-    root = make_net([3, 1])[0]
+    roots = make_net([4, 2, 1])
 
-    mesdata = []
-    iterations = 10000
-    if iterations >= 200:
-        printwhen = iterations // 100
+    iterations = 7500
+    start = timeit.default_timer()
+    lrate = 0.01
+
+    if iterations > 100:
+        prunewhen = iterations // 50
     else:
-        printwhen = 1
+        prunewhen = 5
 
     for i in range(iterations):
     
-        if i % printwhen == 0:
-            mes = root.mean_error_squared(data)
-            mesdata.append((i, mes))
+        if i % prunewhen == 0:
+            mes = [root.mean_error_squared(data)
+                   for root in roots]
             print(f'epoch: {i} mes: {mes}')
+            roots[0].prune(0.01)
 
-        root.backprop(data, 0.01) 
+        backprop(roots, 
+                np.random.combination(data), lrate)
+    
+    end = timeit.default_timer()
+    print(f'finished training in {end - start}s')
 
     for pattern in data:
-        pattern = list(pattern)
-        exp = pattern.pop()
-        print(f'pattern: {pattern}')
-        root.present(pattern, [])
-        root.nullify_hidden()
-        act = root.weighted_sum
-        print(f'exp: {exp} act: {act} err: {abs(exp - act)}')
+        roots[0].present(list(pattern), [])
+        act = np.array([root.weighted_sum for root in roots])
+        print(pattern[:-len(roots)] + np.ndarray.tolist(act))
 
-    x, y = zip(*mesdata)
-    plt.plot(x, y)
-    plt.title('mes against time')
-    plt.xlabel('time /epochs')
-    plt.ylabel('mean error squared')
-    plt.show()
+    queue = list(roots)
+    while len(queue) != 0:
+        current = queue.pop()
+        print(f'bias: {current.bias}')
+        for i, node in enumerate(current.links):
+            print(current.wts[i])
+            if node not in queue:
+                queue.append(node)
+
 
