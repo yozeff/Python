@@ -1,5 +1,6 @@
 #Joseph Harrison 2019
 import numpy as np
+import timeit
 
 def poly_mul(p, q):
     #result polynomial
@@ -13,7 +14,7 @@ def make_poly_list(d):
     #produce a list of deranged polynomials
     #from denominator
     #d = (x + a)(x + b)(x + c) ...
-    #r = [(x + b)(x + c), (x + a)(x + c) ...
+    #r = [(x + b)(x + c) ... , (x + a)(x + c) ...
     r = [[1]] * len(d)
     for i in range(len(d)):
         for j in range(len(d)):
@@ -31,7 +32,7 @@ def maximum_order(r):
             mo = len(p) - 1
     return mo
 
-def make_matrix(r, mo):
+def make_matrix(r, ns):
     A = [[0 for _ in range(mo + 1)]
             for _ in range(mo + 1)]
     for i in range(len(r)): 
@@ -39,14 +40,14 @@ def make_matrix(r, mo):
             A[len(r[i]) - 1 - j][i] = r[i][j]
     return A
 
-def solve_linear_system(A, n, mo):
-    while len(n) != mo + 1:
+def solve_system(r, n, mo):
+    while len(n) < mo + 1:
         n.append(0)
-    A = np.mat(A)
+    r = np.mat(r)
     n = np.mat(n)
     n = np.transpose(n)
     n = np.flip(n)
-    s = np.linalg.inv(A) * n
+    s = np.linalg.solve(r, n)
     s = np.ndarray.tolist(s)
     return s
 
@@ -56,7 +57,10 @@ if __name__ == '__main__':
     while flag:
         try:
             dsize = int(input('number of denominator factors (int): '))
-            flag = False
+            if dsize >= 1:
+                flag = False
+            else:
+                print('must be greater than 0')
         except ValueError:
             print('must be integer')
 
@@ -92,12 +96,17 @@ if __name__ == '__main__':
             except ValueError:
                 print('must be integer')
 
-    r = make_poly_list(d) 
-    mo = maximum_order(r)
-    A = make_matrix(r, mo)
-    s = solve_linear_system(A, n, mo)
-
-    print('numerators of partial fractions (3 d.p):')
-    for i in range(len(s)):
-        print(f'{i + 1} : {round(s[i][0], 3)}')
+    start = timeit.default_timer()
+    r = make_poly_list(d)
+    mo = max(maximum_order(r), nsize)
+    r = make_matrix(r, mo)
+    try:
+        s = solve_system(r, n, mo)
+        end = timeit.default_timer()
+        print(f'finished in {round(end - start, 3)}s (3 d.p)')
+        print('numerators of partial fractions (3 d.p):')
+        for i in range(len(s)):
+            print(f'{i + 1} : {round(s[i][0], 3)}')
+    except:
+        print('singular matrix - impossible solve')
 
